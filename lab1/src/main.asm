@@ -1,12 +1,20 @@
 ; =============================================================================
 
 .model small
+.const
+    even_numbers_bank_addr equ 0b800h
+    odd_numbers_bank_addr equ 0ba00h
+    screen_width equ 100
+    screen_height equ 80
+    cga_videomode equ 6
+    white_color_code equ 1
+
 .data
-    a_x db 0
-    a_y db 0
-    b_x db 0
-    b_y db 0
-    bresenham_delta db 0
+    a_x db ?
+    a_y db ?
+    b_x db ?
+    b_y db ?
+    bresenham_delta db ?
 .code
 
 
@@ -28,9 +36,9 @@ main proc near
 
 setup_cga_videomode proc near
 ; set up es to be a pointer on videobuffer address
-    mov ax, 0006h ; 6 - white & black cga mode
+    mov ax, cga_videomode
     int 10h
-    mov ax, 0b800h ; 0b80:0000 - first byte of cga videobuffer
+    mov ax, 0b800h
     mov es, ax
     ret
     setup_cga_videomode endp
@@ -87,11 +95,11 @@ transform_coordinates proc near
 ; bl - x coordinate [0-79]
 ; exit with error if input values are out of bounds
 ; returns numeric representation of address in bx
-    cmp bh, 100
+    cmp bh, screen_width
     jae exit
-    cmp bl, 80
+    cmp bl, screen_height
     jae exit
-    mov al, 80 ; 80 pixels in line
+    mov al, screen_height
     mul bh
     xor bh, bh
     add bx, ax
@@ -102,7 +110,7 @@ transform_coordinates proc near
 draw_white_point proc near
 ; bx - byte address of cga pixel
 ; es - cga videobuffer address
-    mov al, 1 ; color
+    mov al, white_color_code
     mov es:[bx], al
     ret
     draw_white_point endp
