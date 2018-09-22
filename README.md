@@ -1,6 +1,7 @@
 ### Computer Graphics ITMO labs
 
-Requires `TASM.EXE` and `TLINK.exe` in the `tools` directory.
+Requires `TASM.EXE` and `TLINK.exe` in the `tools` directory. 
+It's recommended to use `TurboDebugger`.
 
 To compile & link labwork in `dosbox`:
 ```
@@ -8,3 +9,4 @@ To compile & link labwork in `dosbox`:
     c:
     MAKE.bat [labwork_index]
 ```
+You can add this lines to your `.dosbox.conf` to make dosbox execute it automatically on each startup.
