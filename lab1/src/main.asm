@@ -3,18 +3,19 @@
 .model small
 
 .data
-    bresenham_delta dw ?
     delta_x dw ?
     delta_y dw ?
-    cell_point_pixel db ?
+    bresenham_delta_x dw ?
+    bresenham_delta_y dw ?
 
-.data?
     a_x dw ?
     a_y dw ?
     b_x dw ?
     b_y dw ?
 
-.const   
+    cell_point_pixel dw ?
+
+.const
     DEFAULT_CELL_POINT_PIXEL equ 10000000b
     EVEN_NUMBERS_BANK_ADDR equ 0b800h
     ODD_FRAME_OFFSET equ 2000h
@@ -23,23 +24,47 @@
     SCREEN_HEIGTH equ 200
     CGA_VIDEOMODE equ 6
 
-.STACK 512
-
 LOCALS l_
 
 .code
-main:
-    call setup_cga_videomode
-    mov word ptr [a_x], 192
-    mov word ptr [a_y], 192
-    mov word ptr [b_x], 199
-    mov word ptr [b_y], 199
+start:
+    push a_x
+    push a_y
+    push b_x
+    push b_y
+    push delta_x
+    push delta_y
+    push bresenham_delta_y
+    push bresenham_delta_x
+    push cell_point_pixel
 
-    mov dx, a_x         ; dx contains current x-position
-    mov ax, a_y         ; bx contains current y-position
-    call draw_line
-    call wait_for_keypress
+    call main
+
+    pop cell_point_pixel
+    pop bresenham_delta_x
+    pop bresenham_delta_y
+    pop delta_y
+    pop delta_x
+    pop b_y
+    pop b_x
+    pop a_y
+    pop a_x
+
     call exit
+
+main proc near
+    call setup_cga_videomode
+
+    mov word ptr [a_x], 40
+    mov word ptr [a_y], 40
+    mov word ptr [b_x], 40
+    mov word ptr [b_y], 40
+
+    call draw_vertical_line
+    call draw_horisontal_line
+    call wait_for_keypress
+    ret
+    main endp
 
 
 setup_cga_videomode proc near
@@ -52,11 +77,27 @@ setup_cga_videomode proc near
     setup_cga_videomode endp
 
 
+draw_vertical_line proc near
+    mov word ptr [bresenham_delta_y], 0
+    mov word ptr [bresenham_delta_x], 1
+    call draw_line
+    ret
+    draw_vertical_line endp
+
+
+draw_horisontal_line proc near
+    mov word ptr [bresenham_delta_y], 1
+    mov word ptr [bresenham_delta_x], 0
+    call draw_line
+    ret
+    draw_horisontal_line endp
+
+
 draw_line proc near
 ; a_x: a_y - A point coordinates
 ; b_x: b_y - B point coordinates
     call calculate_deltas
-    call calculate_bresenham_delta
+    ; call calculate_bresenham_delta
 
     mov dx, a_x         ; dx contains current x-position
     mov ax, a_y         ; bx contains current y-position
@@ -70,8 +111,8 @@ draw_line proc near
         pop dx
         pop ax
 
-        inc dx          ; increment x coordinate
-        add ax, bresenham_delta
+        add dx, bresenham_delta_x
+        add ax, bresenham_delta_y
         loop bresenham_algorithm
     ret
     draw_line endp
@@ -103,11 +144,11 @@ calculate_deltas proc near
         neg cx
 
     find_max_delta:
-        mov delta_x, dx
-        mov delta_y, cx
+        mov word ptr [delta_x], dx
+        mov word ptr [delta_y], cx
 
         cmp dx, cx
-        jz l_return ; abcsissa could be bigger otherwise
+        jl l_return ; abcsissa could be bigger otherwise
     
     ordinate_is_max:
         mov cx, dx
@@ -123,9 +164,17 @@ calculate_bresenham_delta proc near
 ; a_x: a_y - A point coordinates
 ; b_x: b_y - B point coordinates
 ; calculate (y1 - y0)/(x1 - x0) 
-    cmp delta_x, 0
-    jnz calculate_delta
-    mov bresenham_delta, 0
+
+    check_no_delta_x:
+        cmp delta_x, 0
+        jnz check_no_delta_y
+        mov word ptr [bresenham_delta_y], 1
+
+    check_no_delta_y:
+        cmp delta_y, 0
+        jnz calculate_delta
+        mov word ptr [bresenham_delta_x], 1
+
     l_return:
         ret
 
@@ -135,7 +184,7 @@ calculate_bresenham_delta proc near
 
         xor dx, dx
         div cx      ; al = (y1 - y0) / (x1 - x0) 
-        mov bresenham_delta, ax
+        mov word ptr [bresenham_delta_x], ax
         jmp l_return
 
     calculate_bresenham_delta endp
@@ -214,7 +263,7 @@ draw_white_point proc near
     push bx
     mov bx, ax
     mov al, es:[bx]
-    or al, cell_point_pixel
+    or ax, cell_point_pixel
     mov es:[bx], al
     pop bx
     ret
@@ -234,4 +283,4 @@ exit proc near
     ret
     exit endp
 
-end main
+end start
