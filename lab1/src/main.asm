@@ -55,14 +55,14 @@ start:
 main proc near
     call setup_cga_videomode
 
-    mov word ptr [a_x], 40
-    mov word ptr [a_y], 40
-    mov word ptr [b_x], 40
-    mov word ptr [b_y], 40
+    mov word ptr [a_x], 122
+    mov word ptr [a_y], 190
+    mov word ptr [b_x], 140
+    mov word ptr [b_y], 180
+    call draw_curve_line
 
-    call draw_vertical_line
-    call draw_horisontal_line
     call wait_for_keypress
+    call setup_cga_videomode
     ret
     main endp
 
@@ -77,17 +77,36 @@ setup_cga_videomode proc near
     setup_cga_videomode endp
 
 
-draw_vertical_line proc near
-    mov word ptr [bresenham_delta_y], 0
+draw_curve_line proc near
+    call calculate_delta_x
+    call calculate_delta_y
+   ; call calculate_bresenham_deltas
     mov word ptr [bresenham_delta_x], 1
+    mov word ptr [bresenham_delta_y], -1
+    call draw_line
+    ret
+    draw_curve_line endp
+
+
+draw_vertical_line proc near
+; a_x: a_y - A point coordinates
+; b_y - B point y coordinate
+    call calculate_delta_y
+    mov word ptr [delta_x], 0
+    mov word ptr [bresenham_delta_x], 0
+    mov word ptr [bresenham_delta_y], 1
     call draw_line
     ret
     draw_vertical_line endp
 
 
 draw_horisontal_line proc near
-    mov word ptr [bresenham_delta_y], 1
-    mov word ptr [bresenham_delta_x], 0
+; a_x: a_y - A point coordinates
+; b_x - B point x coordinate
+    call calculate_delta_x
+    mov word ptr [delta_y], 0
+    mov word ptr [bresenham_delta_x], 1
+    mov word ptr [bresenham_delta_y], 0
     call draw_line
     ret
     draw_horisontal_line endp
@@ -96,12 +115,11 @@ draw_horisontal_line proc near
 draw_line proc near
 ; a_x: a_y - A point coordinates
 ; b_x: b_y - B point coordinates
-    call calculate_deltas
-    ; call calculate_bresenham_delta
+    call calculate_points_count
 
     mov dx, a_x         ; dx contains current x-position
-    mov ax, a_y         ; bx contains current y-position
-    bresenham_algorithm:
+    mov ax, a_y         ; ax contains current y-position
+    process_point:
         push ax
         push dx
         push cx
@@ -113,39 +131,20 @@ draw_line proc near
 
         add dx, bresenham_delta_x
         add ax, bresenham_delta_y
-        loop bresenham_algorithm
+        loop process_point
     ret
     draw_line endp
 
 
-calculate_deltas proc near
+calculate_points_count proc near
 ; calculate in-line points count 
 ; return max(delta(x0, x1), delta(y0, y1))
 ; a_x: a_y - A point coordinates
 ; b_x: b_y - B point coordinates
 ; return points_count in cx
-
-    abscissa_delta_calculate:
-        mov dx, b_x
-        mov ax, a_x
-        sub dx, ax
-        jge ordinate_delta_calculate
-
-    abscissa_reversed_points:
-        neg dx
-
-    ordinate_delta_calculate:
-        mov cx, b_y
-        mov ax, a_y
-        sub cx, ax
-        jge find_max_delta
-
-    ordinate_reversed_points:
-        neg cx
-
     find_max_delta:
-        mov word ptr [delta_x], dx
-        mov word ptr [delta_y], cx
+        mov dx, word ptr [delta_x]
+        mov cx, word ptr [delta_y]
 
         cmp dx, cx
         jl l_return ; abcsissa could be bigger otherwise
@@ -157,23 +156,52 @@ calculate_deltas proc near
         inc cx ; one point is lost
         ret
 
-    calculate_deltas endp    
+    calculate_points_count endp    
 
 
-calculate_bresenham_delta proc near
+calculate_delta_x proc near
+; a_x - A point x coordinate
+; b_x - B point x coordinate
+    mov ax, a_x
+    mov dx, b_x
+    sub dx, ax
+    jge l_return
+    neg dx
+
+    l_return:
+        mov delta_x, dx
+        ret
+    calculate_delta_x endp
+
+
+calculate_delta_y proc near
+; a_y - A point y coordinate
+; b_y - B point y coordinate
+    mov ax, a_y
+    mov dx, b_y
+    sub dx, ax
+    jge l_return
+    neg dx
+
+    l_return:
+        mov delta_y, dx
+        ret
+    calculate_delta_y endp
+
+
+calculate_bresenham_deltas proc near
 ; a_x: a_y - A point coordinates
 ; b_x: b_y - B point coordinates
 ; calculate (y1 - y0)/(x1 - x0) 
-
     check_no_delta_x:
         cmp delta_x, 0
-        jnz check_no_delta_y
-        mov word ptr [bresenham_delta_y], 1
+        jne check_no_delta_y
+        mov word ptr [bresenham_delta_x], 0
 
     check_no_delta_y:
         cmp delta_y, 0
-        jnz calculate_delta
-        mov word ptr [bresenham_delta_x], 1
+        jne calculate_delta
+        mov word ptr [bresenham_delta_y], 0
 
     l_return:
         ret
@@ -185,9 +213,10 @@ calculate_bresenham_delta proc near
         xor dx, dx
         div cx      ; al = (y1 - y0) / (x1 - x0) 
         mov word ptr [bresenham_delta_x], ax
+        mov word ptr [bresenham_delta_y], 1
         jmp l_return
 
-    calculate_bresenham_delta endp
+    calculate_bresenham_deltas endp
 
 
 transform_coordinates proc near
@@ -260,12 +289,10 @@ setup_cell_point_pixel proc near
 draw_white_point proc near
 ; ax - byte address of cga pixel
 ; es - cga videobuffer address
-    push bx
-    mov bx, ax
-    mov al, es:[bx]
+    mov si, ax
+    mov al, es:[si]
     or ax, cell_point_pixel
-    mov es:[bx], al
-    pop bx
+    mov es:[si], al
     ret
     draw_white_point endp
 
