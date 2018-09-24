@@ -23,12 +23,17 @@
 
 .STACK 512
 
-    ; mov ax, 0000h
-    ; mov bx, 3030h
-    ; call draw_line
+
+.code
+main:
+    call setup_cga_videomode
+    mov word ptr [a_x], 0
+    mov word ptr [a_y], 0
+    mov word ptr [b_x], 200
+    mov word ptr [b_y], 200
+    call draw_line
     call wait_for_keypress
     call exit
-    main endp
 
 
 setup_cga_videomode proc near
@@ -42,49 +47,46 @@ setup_cga_videomode proc near
 
 
 draw_line proc near
-; ah:al - y:x coordinates of point A
-; bh:bl - y:x coordinates of point B
-    mov a_x, al
-    mov a_y, ah
-    mov b_x, bl
-    mov b_y, bh
+; a_x: a_y - A point coordinates
+; b_x: b_y - B point coordinates
     call calculate_deltas 
 
-    mov cl, b_x
-    sub cl, a_x          ; calculate (x1-x0), put in cl
+    mov cx, b_x
+    sub cx, a_x         ; calculate (x1-x0), put in cx
 
-    mov dl, a_x          ; dl contains current x-position
-    mov dh, a_y          ; dh contains current y-position
+    mov dx, a_x         ; dx contains current x-position
+    mov ax, a_y         ; bx contains current y-position
     bresenham_algorithm:
-        mov bl, dl
-        mov bh, dh
-
+        push ax
+        push dx
+        push cx
         call transform_coordinates
         call draw_white_point
+        pop cx
+        pop dx
+        pop ax
 
-        inc dl           ; increment x coordinate
-        add dh, bresenham_delta
+        inc dx          ; increment x coordinate
+        add ax, bresenham_delta
         loop bresenham_algorithm
     ret
     draw_line endp
 
 
 calculate_deltas proc near
-; ah:al - y0:x0
-; bh:bl - y1:x1
+; a_x: a_y - A point coordinates
+; b_x: b_y - B point coordinates
 ; calculate (y1 - y0)/(x1 - x0) 
-    cmp al, bl
+    mov cx, b_x
+    sub cx, a_x ; x1 - x0
     jz exit
 
-    mov dl, bl
-    sub dl, al ; x1 - x0
-    mov dh, bh
-    sub dh, ah ; y1 - y0
+    mov ax, b_y
+    sub ax, a_y ; y1 - y0
 
-    xor ax, ax
-    mov al, dh ; y1 - y0 -> al
-    div dl     ; al = (x1 - x0) / (y1 - y0)
-    mov bresenham_delta, al
+    xor dx, dx
+    div cx      ; al = (y1 - y0) / (x1 - x0) 
+    mov bresenham_delta, ax
 
     ret
     calculate_deltas endp
@@ -92,13 +94,14 @@ calculate_deltas proc near
 
 transform_coordinates proc near
 ; dx - x coordinate [0-639]
-; bx - y coordinate [0-199]
+; ax - y coordinate [0-199]
 
 ; exit with error if input values are out of bounds
-; returns numeric representation of address in bx
+; returns numeric representation of address in ax
+    push bx
     call validate_coordinates
 
-    push cx
+    mov bx, ax
     fixup_odd_row_frame:
         xor cx, cx
         test bl, 1
@@ -117,16 +120,17 @@ transform_coordinates proc near
         mov dl, 08
         div dl
         xor dx, dx
+        push cx
         call setup_cell_point_pixel
+        pop cx
         mov dl, al ; divide it by 8 to correctly transform x coordinate
 
         mov ax, SCREEN_WIDTH_BYTES
         mul bl
-        mov bx, ax
-        add bx, dx
-        add bx, cx
+        add ax, dx
+        add ax, cx ; calculate absolute offset
     
-    pop cx
+    pop bx
     ret
     transform_coordinates endp
 
@@ -148,20 +152,22 @@ setup_cell_point_pixel proc near
 ; 2 - 00000100
 ; ...
 ; ah - cell value
-    push cx
-    mov cell_point_pixel, default_cell_point_pixel
+    mov cell_point_pixel, DEFAULT_CELL_POINT_PIXEL
     mov cl, ah
     ror cell_point_pixel, cl
-    pop cx
     ret
     setup_cell_point_pixel endp
 
 
 draw_white_point proc near
-; bx - byte address of cga pixel
+; ax - byte address of cga pixel
 ; es - cga videobuffer address
-    mov al, cell_point_pixel
+    push bx
+    mov bx, ax
+    mov al, es:[bx]
+    or al, cell_point_pixel
     mov es:[bx], al
+    pop bx
     ret
     draw_white_point endp
 
@@ -174,8 +180,9 @@ wait_for_keypress proc near
 
 
 exit proc
-    mov ah, 4ch
+    mov ax, 4c00h
     int 21h
+    ret
     exit endp
 
-end
+end main
