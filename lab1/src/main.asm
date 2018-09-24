@@ -1,27 +1,27 @@
 ; =============================================================================
 
 .model small
-.const
-    default_cell_point_pixel equ 10000000b
-    even_numbers_bank_addr equ 0b800h
-    odd_frame_offset equ 2000h
-    screen_width equ 640
-    screen_width_bytes equ 80
-    screen_height equ 200
-    cga_videomode equ 6
 
 .data
-    a_x db ?
-    a_y db ?
-    b_x db ?
-    b_y db ?
-    bresenham_delta db ?
+    bresenham_delta dw ?
     cell_point_pixel db ?
-.code
 
+.data?
+    a_x dw ?
+    a_y dw ?
+    b_x dw ?
+    b_y dw ?
 
-main proc near
-    call setup_cga_videomode
+.const   
+    DEFAULT_CELL_POINT_PIXEL equ 10000000b
+    EVEN_NUMBERS_BANK_ADDR equ 0b800h
+    ODD_FRAME_OFFSET equ 2000h
+    SCREEN_WIDTH_BYTES equ 80
+    SCREEN_WIDTH equ 640
+    SCREEN_HEIGTH equ 200
+    CGA_VIDEOMODE equ 6
+
+.STACK 512
 
     ; mov ax, 0000h
     ; mov bx, 3030h
@@ -33,9 +33,9 @@ main proc near
 
 setup_cga_videomode proc near
 ; set up es to be a pointer on videobuffer address
-    mov ax, cga_videomode
+    mov ax, CGA_VIDEOMODE
     int 10h
-    mov ax, 0b800h
+    mov ax, EVEN_NUMBERS_BANK_ADDR
     mov es, ax
     ret
     setup_cga_videomode endp
@@ -103,7 +103,7 @@ transform_coordinates proc near
         xor cx, cx
         test bl, 1
         jz calculate_offset
-        add cx, odd_frame_offset
+        add cx, ODD_FRAME_OFFSET
         dec bl
 
     calculate_offset:
@@ -120,7 +120,7 @@ transform_coordinates proc near
         call setup_cell_point_pixel
         mov dl, al ; divide it by 8 to correctly transform x coordinate
 
-        mov ax, screen_width_bytes
+        mov ax, SCREEN_WIDTH_BYTES
         mul bl
         mov bx, ax
         add bx, dx
@@ -132,9 +132,9 @@ transform_coordinates proc near
 
 
 validate_coordinates proc near
-    cmp bh, screen_height
+    cmp ah, SCREEN_HEIGTH
     jae exit
-    cmp dx, screen_width
+    cmp ax, SCREEN_WIDTH
     jae exit
     ret
     validate_coordinates endp
