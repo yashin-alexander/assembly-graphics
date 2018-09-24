@@ -4,6 +4,8 @@
 
 .data
     bresenham_delta dw ?
+    delta_x dw ?
+    delta_y dw ?
     cell_point_pixel db ?
 
 .data?
@@ -23,14 +25,18 @@
 
 .STACK 512
 
+LOCALS l_
 
 .code
 main:
     call setup_cga_videomode
-    mov word ptr [a_x], 0
-    mov word ptr [a_y], 0
-    mov word ptr [b_x], 200
-    mov word ptr [b_y], 200
+    mov word ptr [a_x], 192
+    mov word ptr [a_y], 192
+    mov word ptr [b_x], 199
+    mov word ptr [b_y], 199
+
+    mov dx, a_x         ; dx contains current x-position
+    mov ax, a_y         ; bx contains current y-position
     call draw_line
     call wait_for_keypress
     call exit
@@ -49,10 +55,8 @@ setup_cga_videomode proc near
 draw_line proc near
 ; a_x: a_y - A point coordinates
 ; b_x: b_y - B point coordinates
-    call calculate_deltas 
-
-    mov cx, b_x
-    sub cx, a_x         ; calculate (x1-x0), put in cx
+    call calculate_deltas
+    call calculate_bresenham_delta
 
     mov dx, a_x         ; dx contains current x-position
     mov ax, a_y         ; bx contains current y-position
@@ -74,22 +78,67 @@ draw_line proc near
 
 
 calculate_deltas proc near
+; calculate in-line points count 
+; return max(delta(x0, x1), delta(y0, y1))
+; a_x: a_y - A point coordinates
+; b_x: b_y - B point coordinates
+; return points_count in cx
+
+    abscissa_delta_calculate:
+        mov dx, b_x
+        mov ax, a_x
+        sub dx, ax
+        jge ordinate_delta_calculate
+
+    abscissa_reversed_points:
+        neg dx
+
+    ordinate_delta_calculate:
+        mov cx, b_y
+        mov ax, a_y
+        sub cx, ax
+        jge find_max_delta
+
+    ordinate_reversed_points:
+        neg cx
+
+    find_max_delta:
+        mov delta_x, dx
+        mov delta_y, cx
+
+        cmp dx, cx
+        jz l_return ; abcsissa could be bigger otherwise
+    
+    ordinate_is_max:
+        mov cx, dx
+    
+    l_return:
+        inc cx ; one point is lost
+        ret
+
+    calculate_deltas endp    
+
+
+calculate_bresenham_delta proc near
 ; a_x: a_y - A point coordinates
 ; b_x: b_y - B point coordinates
 ; calculate (y1 - y0)/(x1 - x0) 
-    mov cx, b_x
-    sub cx, a_x ; x1 - x0
-    jz exit
+    cmp delta_x, 0
+    jnz calculate_delta
+    mov bresenham_delta, 0
+    l_return:
+        ret
 
-    mov ax, b_y
-    sub ax, a_y ; y1 - y0
+    calculate_delta:
+        mov ax, delta_x
+        mov cx, delta_y
 
-    xor dx, dx
-    div cx      ; al = (y1 - y0) / (x1 - x0) 
-    mov bresenham_delta, ax
+        xor dx, dx
+        div cx      ; al = (y1 - y0) / (x1 - x0) 
+        mov bresenham_delta, ax
+        jmp l_return
 
-    ret
-    calculate_deltas endp
+    calculate_bresenham_delta endp
 
 
 transform_coordinates proc near
@@ -179,7 +228,7 @@ wait_for_keypress proc near
     wait_for_keypress endp
 
 
-exit proc
+exit proc near
     mov ax, 4c00h
     int 21h
     ret
