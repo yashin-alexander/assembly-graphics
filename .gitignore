@@ -1,4 +1,7 @@
 tools/*.EXE
+tools/*.OVL
+tools/*.DLL
 *.MAP
 *.OBJ
 *.EXE
+*.LST
