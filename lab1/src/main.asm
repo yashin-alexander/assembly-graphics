@@ -5,6 +5,8 @@
 .data
     delta_x dw ?
     delta_y dw ?
+    y_deltas_difference dw ?
+    x_deltas_difference dw ?
     bresenham_delta_x dw ?
     bresenham_delta_y dw ?
 
@@ -34,6 +36,7 @@ start:
     push b_y
     push delta_x
     push delta_y
+    push y_deltas_difference
     push bresenham_delta_y
     push bresenham_delta_x
     push cell_point_pixel
@@ -43,6 +46,7 @@ start:
     pop cell_point_pixel
     pop bresenham_delta_x
     pop bresenham_delta_y
+    pop y_deltas_difference
     pop delta_y
     pop delta_x
     pop b_y
@@ -55,13 +59,18 @@ start:
 main proc near
     call setup_cga_videomode
 
-    mov word ptr [a_x], 122
-    mov word ptr [a_y], 190
-    mov word ptr [b_x], 140
-    mov word ptr [b_y], 180
+    mov word ptr [a_x], 0
+    mov word ptr [a_y], 40
+    mov word ptr [b_x], 100
+    mov word ptr [b_y], 20
     call draw_curve_line
-
+    mov word ptr [a_x], 0
+    mov word ptr [a_y], 40
+    mov word ptr [b_x], 100
+    mov word ptr [b_y], 60
+    call draw_curve_line
     call wait_for_keypress
+
     call setup_cga_videomode
     ret
     main endp
@@ -80,83 +89,52 @@ setup_cga_videomode proc near
 draw_curve_line proc near
     call calculate_delta_x
     call calculate_delta_y
-   ; call calculate_bresenham_deltas
-    mov word ptr [bresenham_delta_x], 1
-    mov word ptr [bresenham_delta_y], -1
     call draw_line
     ret
     draw_curve_line endp
 
 
-draw_vertical_line proc near
-; a_x: a_y - A point coordinates
-; b_y - B point y coordinate
-    call calculate_delta_y
-    mov word ptr [delta_x], 0
-    mov word ptr [bresenham_delta_x], 0
-    mov word ptr [bresenham_delta_y], 1
-    call draw_line
-    ret
-    draw_vertical_line endp
-
-
-draw_horisontal_line proc near
-; a_x: a_y - A point coordinates
-; b_x - B point x coordinate
-    call calculate_delta_x
-    mov word ptr [delta_y], 0
-    mov word ptr [bresenham_delta_x], 1
-    mov word ptr [bresenham_delta_y], 0
-    call draw_line
-    ret
-    draw_horisontal_line endp
-
-
 draw_line proc near
 ; a_x: a_y - A point coordinates
 ; b_x: b_y - B point coordinates
+    call calculate_deltas_difference
     call calculate_points_count
 
     mov dx, a_x         ; dx contains current x-position
     mov ax, a_y         ; ax contains current y-position
     process_point:
+        push cx
         push ax
         push dx
-        push cx
         call transform_coordinates
         call draw_white_point
-        pop cx
         pop dx
         pop ax
+        call calculate_bresenham_deltas
+        pop cx
 
-        add dx, bresenham_delta_x
-        add ax, bresenham_delta_y
         loop process_point
     ret
     draw_line endp
 
 
-calculate_points_count proc near
-; calculate in-line points count 
-; return max(delta(x0, x1), delta(y0, y1))
-; a_x: a_y - A point coordinates
-; b_x: b_y - B point coordinates
-; return points_count in cx
-    find_max_delta:
-        mov dx, word ptr [delta_x]
-        mov cx, word ptr [delta_y]
+calculate_deltas_difference proc near
+; calculates base deltas_difference which is used by bresenham algorithm
+; y_deltas_difference = 2Dy-Dx
+; x_deltas_difference = 2Dx-D
+    mov ax, delta_y
+    shl ax, 1
+    mov cx, delta_x
+    sub ax, delta_x
+    mov y_deltas_difference, ax
 
-        cmp dx, cx
-        jl l_return ; abcsissa could be bigger otherwise
-    
-    ordinate_is_max:
-        mov cx, dx
-    
-    l_return:
-        inc cx ; one point is lost
-        ret
-
-    calculate_points_count endp    
+    mov ax, delta_x
+    shl ax, 1
+    mov cx, delta_y
+    sub ax, delta_y
+    mov x_deltas_difference, ax
+    ret
+    calculate_deltas_difference endp
 
 
 calculate_delta_x proc near
@@ -189,32 +167,69 @@ calculate_delta_y proc near
     calculate_delta_y endp
 
 
-calculate_bresenham_deltas proc near
+calculate_points_count proc near
+; calculate in-line points count 
+; return max(delta(x0, x1), delta(y0, y1))
 ; a_x: a_y - A point coordinates
 ; b_x: b_y - B point coordinates
-; calculate (y1 - y0)/(x1 - x0) 
-    check_no_delta_x:
-        cmp delta_x, 0
-        jne check_no_delta_y
-        mov word ptr [bresenham_delta_x], 0
+; return points_count in cx
+    find_max_delta:
+        mov dx, word ptr [delta_x]
+        mov cx, word ptr [delta_y]
 
-    check_no_delta_y:
-        cmp delta_y, 0
-        jne calculate_delta
-        mov word ptr [bresenham_delta_y], 0
-
+        cmp dx, cx
+        jl l_return ; abcsissa could be bigger otherwise
+    
+    ordinate_is_max:
+        mov cx, dx
+    
     l_return:
+        inc cx ; one point is lost
         ret
 
-    calculate_delta:
-        mov ax, delta_x
-        mov cx, delta_y
+    calculate_points_count endp    
 
-        xor dx, dx
-        div cx      ; al = (y1 - y0) / (x1 - x0) 
-        mov word ptr [bresenham_delta_x], ax
-        mov word ptr [bresenham_delta_y], 1
-        jmp l_return
+
+run_bresenham_algorithm proc near
+; dx - current x coordinate
+; ax - current y coordinate
+
+    ret
+    run_bresenham_algorithm endp
+
+
+calculate_bresenham_deltas proc near
+    mov cx, y_deltas_difference
+    cmp y_deltas_difference, 0
+    jge define_area
+    
+    mov cx, delta_y ; no increment ordinate
+    shl cx, 1
+    add cx, y_deltas_difference
+    mov y_deltas_difference, cx ; y_deltas_difference = y_deltas_difference + 2 * Dy
+
+    process_x_deltas_difference:
+        inc dx
+        ret
+
+    define_area:
+        mov cx, a_y
+        cmp cx, b_y
+        jl increment_y
+            dec ax
+
+    process_y_deltas_difference:    
+        mov cx, delta_y
+        sub cx, delta_x
+        shl cx, 1
+        mov bx, y_deltas_difference
+        sub cx, bx
+        mov y_deltas_difference, cx ; y_deltas_difference = y_deltas_difference - 2 * (Dy - Dx)
+        jmp process_x_deltas_difference
+ 
+    increment_y:
+        inc ax
+        jmp process_y_deltas_difference
 
     calculate_bresenham_deltas endp
 
@@ -238,10 +253,7 @@ transform_coordinates proc near
 
     calculate_offset:
         xor ax, ax
-        mov al, bl
-        mov bh, 2
-        div bh
-        mov bl, al ; divide it by 2 to correctly transform y coordinate
+        ror bl, 1 ; divide it by 2 to correctly transform y coordinate
 
         mov ax, dx
         mov dl, 08
