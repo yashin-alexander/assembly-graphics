@@ -3,6 +3,7 @@
 .model small
 
 .data
+; parameters for bresenham algorithm
     delta_x dw ?
     delta_y dw ?
     y_deltas_difference dw ?
@@ -10,12 +11,15 @@
     bresenham_delta_x dw ?
     bresenham_delta_y dw ?
 
+; parameters for point processing
     a_x dw ?
     a_y dw ?
     b_x dw ?
     b_y dw ?
-
     cell_point_pixel dw ?
+
+; sp pointer to correctly repair stack in case of errors
+    sp_pointer dw ?
 
 .const
     DEFAULT_CELL_POINT_PIXEL equ 10000000b
@@ -37,38 +41,24 @@ start:
     push delta_x
     push delta_y
     push y_deltas_difference
+    push x_deltas_difference
     push bresenham_delta_y
     push bresenham_delta_x
     push cell_point_pixel
+    mov word ptr [sp_pointer], sp
 
     call main
-
-    pop cell_point_pixel
-    pop bresenham_delta_x
-    pop bresenham_delta_y
-    pop y_deltas_difference
-    pop delta_y
-    pop delta_x
-    pop b_y
-    pop b_x
-    pop a_y
-    pop a_x
-
     call exit
+
 
 main proc near
     call setup_cga_videomode
 
     mov word ptr [a_x], 0
     mov word ptr [a_y], 40
-    mov word ptr [b_x], 100
-    mov word ptr [b_y], 20
-    call draw_curve_line
-    mov word ptr [a_x], 0
-    mov word ptr [a_y], 40
-    mov word ptr [b_x], 100
-    mov word ptr [b_y], 60
-    call draw_curve_line
+    mov word ptr [b_x], 20
+    mov word ptr [b_y], 80
+    call draw_line
     call wait_for_keypress
 
     call setup_cga_videomode
@@ -86,17 +76,11 @@ setup_cga_videomode proc near
     setup_cga_videomode endp
 
 
-draw_curve_line proc near
-    call calculate_delta_x
-    call calculate_delta_y
-    call draw_line
-    ret
-    draw_curve_line endp
-
-
 draw_line proc near
 ; a_x: a_y - A point coordinates
 ; b_x: b_y - B point coordinates
+    call calculate_delta_x
+    call calculate_delta_y
     call calculate_deltas_difference
     call calculate_points_count
 
@@ -110,7 +94,7 @@ draw_line proc near
         call draw_white_point
         pop dx
         pop ax
-        call calculate_bresenham_deltas
+        call run_bresenham_algorithm
         pop cx
 
         loop process_point
@@ -120,17 +104,15 @@ draw_line proc near
 
 calculate_deltas_difference proc near
 ; calculates base deltas_difference which is used by bresenham algorithm
-; y_deltas_difference = 2Dy-Dx
-; x_deltas_difference = 2Dx-D
+; y_deltas_difference = 2Dy  -Dx
+; x_deltas_difference = 2Dx - Dy
     mov ax, delta_y
     shl ax, 1
-    mov cx, delta_x
     sub ax, delta_x
     mov y_deltas_difference, ax
 
     mov ax, delta_x
     shl ax, 1
-    mov cx, delta_y
     sub ax, delta_y
     mov x_deltas_difference, ax
     ret
@@ -193,45 +175,96 @@ calculate_points_count proc near
 run_bresenham_algorithm proc near
 ; dx - current x coordinate
 ; ax - current y coordinate
+    mov cx, delta_y
+    cmp cx, delta_x
+    jge major_x
+    major_y:
+        call calculate_x_major_bresenham_deltas
+    l_return:
+        ret
 
-    ret
+    major_x:
+        call calculate_y_major_bresenham_deltas
+        jmp l_return
+
     run_bresenham_algorithm endp
 
 
-calculate_bresenham_deltas proc near
+calculate_x_major_bresenham_deltas proc near
+; dx - constantly incremented x coordinate
+; ax - y coordinate
     mov cx, y_deltas_difference
     cmp y_deltas_difference, 0
-    jge define_area
+    jge l_define_incremention_area ; two cases: Di < 0 or Di >= 0
     
-    mov cx, delta_y ; no increment ordinate
+    mov cx, delta_y ; case when Di < 0
     shl cx, 1
     add cx, y_deltas_difference
-    mov y_deltas_difference, cx ; y_deltas_difference = y_deltas_difference + 2 * Dy
+    mov y_deltas_difference, cx ; deltas_difference = deltas_difference + 2 * Dy
 
-    process_x_deltas_difference:
+    l_return:
         inc dx
         ret
 
-    define_area:
+    l_define_incremention_area: ; case when Di >= 0
         mov cx, a_y
         cmp cx, b_y
-        jl increment_y
-            dec ax
+        jl increment_y ; if line from bootom to high, increment minor
+        dec ax ; decrement minor otherwise
 
-    process_y_deltas_difference:    
+    l_process_deltas_difference: ; calculate deltas difference for next iteration    
         mov cx, delta_y
         sub cx, delta_x
         shl cx, 1
         mov bx, y_deltas_difference
-        sub cx, bx
-        mov y_deltas_difference, cx ; y_deltas_difference = y_deltas_difference - 2 * (Dy - Dx)
-        jmp process_x_deltas_difference
+        sub bx, cx
+        mov y_deltas_difference, cx ; deltas_difference = deltas_difference - 2 * (Dy - Dx)
+        jmp l_return
  
     increment_y:
         inc ax
-        jmp process_y_deltas_difference
+        jmp l_process_deltas_difference
 
-    calculate_bresenham_deltas endp
+    calculate_x_major_bresenham_deltas endp
+
+
+calculate_y_major_bresenham_deltas proc near
+; dx - x coordinate
+; ax - constantly incremented y coordinate
+    l_define_incremention_area:
+        mov cx, a_y
+        cmp cx, b_y
+        jl increment_x ; if line from bootom to top , decrement major
+        dec ax ; increment major otherwise
+    
+    l_process_deltas_difference:
+        mov cx, x_deltas_difference
+        cmp x_deltas_difference, 0
+        jge l_calculate_deltas_difference ; two cases: Di < 0 or Di >= 0
+    
+    mov cx, delta_x ; case when Di < 0
+    shl cx, 1
+    add cx, x_deltas_difference
+    mov x_deltas_difference, cx ; deltas_difference = deltas_difference + 2 * Dx
+
+    l_return:
+        ret
+
+    increment_x:
+        inc ax 
+        jmp l_process_deltas_difference
+
+    l_calculate_deltas_difference:  ; case when Di >= 0;
+        inc dx          ; increment x
+        mov cx, delta_x ; calculate deltas difference for next iteration    
+        sub cx, delta_y
+        shl cx, 1
+        mov bx, x_deltas_difference
+        sub bx, cx
+        mov x_deltas_difference, cx ; deltas_difference = deltas_difference - 2 * (Dx - Dy)
+        jmp l_return
+ 
+    calculate_y_major_bresenham_deltas endp
 
 
 transform_coordinates proc near
@@ -275,9 +308,9 @@ transform_coordinates proc near
 
 
 validate_coordinates proc near
-    cmp ah, SCREEN_HEIGTH
+    cmp ax, SCREEN_HEIGTH
     jae exit
-    cmp ax, SCREEN_WIDTH
+    cmp dx, SCREEN_WIDTH
     jae exit
     ret
     validate_coordinates endp
@@ -317,6 +350,19 @@ wait_for_keypress proc near
 
 
 exit proc near
+    mov sp, sp_pointer
+    pop cell_point_pixel
+    pop bresenham_delta_x
+    pop bresenham_delta_y
+    pop x_deltas_difference
+    pop y_deltas_difference
+    pop delta_y
+    pop delta_x
+    pop b_y
+    pop b_x
+    pop a_y
+    pop a_x
+
     mov ax, 4c00h
     int 21h
     ret
