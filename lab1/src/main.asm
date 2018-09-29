@@ -217,8 +217,8 @@ calculate_x_major_bresenham_deltas proc near
         sub cx, delta_x
         shl cx, 1
         mov bx, y_deltas_difference
-        sub bx, cx
-        mov y_deltas_difference, cx ; deltas_difference = deltas_difference - 2 * (Dy - Dx)
+        add bx, cx
+        mov y_deltas_difference, bx ; deltas_difference = deltas_difference - 2 * (Dy - Dx)
         jmp l_return
  
     increment_y:
@@ -260,8 +260,8 @@ calculate_y_major_bresenham_deltas proc near
         sub cx, delta_y
         shl cx, 1
         mov bx, x_deltas_difference
-        sub bx, cx
-        mov x_deltas_difference, cx ; deltas_difference = deltas_difference - 2 * (Dx - Dy)
+        add bx, cx
+        mov x_deltas_difference, bx ; deltas_difference = deltas_difference - 2 * (Dx - Dy)
         jmp l_return
  
     calculate_y_major_bresenham_deltas endp
