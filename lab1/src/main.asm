@@ -45,6 +45,7 @@ start:
     push bresenham_delta_y
     push bresenham_delta_x
     push cell_point_pixel
+    push sp
     mov word ptr [sp_pointer], sp
 
     call main
@@ -54,10 +55,10 @@ start:
 main proc near
     call setup_cga_videomode
 
-    mov word ptr [a_x], 0
-    mov word ptr [a_y], 40
     mov word ptr [b_x], 20
     mov word ptr [b_y], 80
+    mov word ptr [a_x], 220
+    mov word ptr [a_y], 40
     call draw_line
     call wait_for_keypress
 
@@ -79,6 +80,7 @@ setup_cga_videomode proc near
 draw_line proc near
 ; a_x: a_y - A point coordinates
 ; b_x: b_y - B point coordinates
+    call fixup_points_order
     call calculate_delta_x
     call calculate_delta_y
     call calculate_deltas_difference
@@ -102,21 +104,24 @@ draw_line proc near
     draw_line endp
 
 
-calculate_deltas_difference proc near
-; calculates base deltas_difference which is used by bresenham algorithm
-; y_deltas_difference = 2Dy  -Dx
-; x_deltas_difference = 2Dx - Dy
-    mov ax, delta_y
-    shl ax, 1
-    sub ax, delta_x
-    mov y_deltas_difference, ax
+fixup_points_order proc near
+; swap A -> B point coordinates if Ax > Bx
+; do nothing otherwise
+    mov cx, a_x
+    cmp cx, b_x
+    jl l_return; l_return ; point A is in the left, it's OK
 
-    mov ax, delta_x
-    shl ax, 1
-    sub ax, delta_y
-    mov x_deltas_difference, ax
+    mov dx, b_x ; swap point coordinates, A->B B->A
+    mov word ptr [b_x], cx
+    mov word ptr [a_x], dx
+    mov cx, a_y
+    mov dx, b_y
+    mov word ptr [b_y], cx
+    mov word ptr [a_y], dx
+
+    l_return:
     ret
-    calculate_deltas_difference endp
+    fixup_points_order endp
 
 
 calculate_delta_x proc near
@@ -147,6 +152,23 @@ calculate_delta_y proc near
         mov delta_y, dx
         ret
     calculate_delta_y endp
+
+
+calculate_deltas_difference proc near
+; calculates base deltas_difference which is used by bresenham algorithm
+; y_deltas_difference = 2Dy  -Dx
+; x_deltas_difference = 2Dx - Dy
+    mov ax, delta_y
+    shl ax, 1
+    sub ax, delta_x
+    mov y_deltas_difference, ax
+
+    mov ax, delta_x
+    shl ax, 1
+    sub ax, delta_y
+    mov x_deltas_difference, ax
+    ret
+    calculate_deltas_difference endp
 
 
 calculate_points_count proc near
@@ -351,6 +373,7 @@ wait_for_keypress proc near
 
 exit proc near
     mov sp, sp_pointer
+    pop sp
     pop cell_point_pixel
     pop bresenham_delta_x
     pop bresenham_delta_y
