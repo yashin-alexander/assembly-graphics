@@ -1,4 +1,12 @@
 ; =============================================================================
+; Computer graphics
+; =============================================================================
+; Procedures:
+; - transform_coordinates
+; - draw_point
+; - draw_line
+; - draw_circle
+;
 
 .model small
 
@@ -8,15 +16,21 @@
     delta_y dw ?
     y_deltas_difference dw ?
     x_deltas_difference dw ?
-    bresenham_delta_x dw ?
-    bresenham_delta_y dw ?
+
+; parameters for starodubtsev algorithm
+    circle_delta dw ?
+    iteration_index dw ?
 
 ; parameters for point processing
     a_x dw ?
     a_y dw ?
     b_x dw ?
     b_y dw ?
+    current_x dw ?
+    current_y dw ?
     cell_point_pixel dw ?
+    radius dw ?
+
 
 .const
     DEFAULT_CELL_POINT_PIXEL equ 10000000b
@@ -31,20 +45,6 @@ locals l_
 
 
 .code
-main proc near
-    call setup_cga_videomode
-
-    mov word ptr [b_x], 20
-    mov word ptr [b_y], 80
-    mov word ptr [a_x], 220
-    mov word ptr [a_y], 40
-    call draw_line
-    call wait_for_keypress
-
-    call setup_cga_videomode
-    ret
-    main endp
-
 
 setup_cga_videomode proc near
 ; set up es to be a pointer on videobuffer address
@@ -54,6 +54,109 @@ setup_cga_videomode proc near
     mov es, ax
     ret
     setup_cga_videomode endp
+
+
+draw_circle proc near
+; a_x: a_y - center coordinates
+; radius - circle radius value
+; powered by starodubtsev algorithm
+    call initialize_starodubtsev
+    l_process_starodubtsev:
+        call draw_circle_parts
+        inc current_x
+        mov dx, circle_delta
+        add dx, iteration_index ; circle_delta = circle_delta + iteration_index
+        mov ax, current_y
+        shr ax, 1
+        cmp dx, ax
+        jl draw_point ; if circle_delta < current_y / 2, do not change current_y
+
+        dec current_y ; increment y otherwise
+        sub dx, current_y ; circle_delta = circle_delta - current_y
+            
+        draw_point:
+            mov word ptr [circle_delta], dx ; save new circle_delta value
+            inc iteration_index
+        mov dx, current_x
+        cmp dx, current_y ; repeat untill current_x < current_y
+    jle l_process_starodubtsev
+    ret
+    draw_circle endp
+
+
+initialize_starodubtsev proc near
+; initialize all the starodubtsev required data
+    mov word ptr [current_x], 0
+    mov word ptr [circle_delta], 0
+    mov word ptr [iteration_index], 0
+    mov ax, radius
+    mov word ptr [current_y], ax ; start with current_x = 0, current_y = radius
+    ret
+    initialize_starodubtsev endp
+
+
+draw_circle_parts proc near
+; takes starodubtsev current x,y coordinates in current_x, current_y
+; and circle center coordinate in a_x, a_y
+; symmetrically draws a point in eight parts of a circle
+    mov dx, a_x
+    add dx, current_x
+    mov ax, a_y ; add actual point coordinates
+    sub ax, current_y
+    call transform_coordinates
+    call draw_white_point
+
+    mov dx, a_x
+    add dx, current_x
+    mov ax, a_y
+    add ax, current_y
+    call transform_coordinates
+    call draw_white_point
+
+    mov dx, a_x
+    sub dx, current_x
+    mov ax, a_y
+    add ax, current_y
+    call transform_coordinates
+    call draw_white_point
+
+    mov dx, a_x
+    sub dx, current_x
+    mov ax, a_y
+    sub ax, current_y
+    call transform_coordinates
+    call draw_white_point
+
+    mov dx, a_x
+    add dx, current_y
+    mov ax, a_y
+    sub ax, current_x
+    call transform_coordinates
+    call draw_white_point
+
+    mov dx, a_x
+    add dx, current_y
+    mov ax, a_y
+    add ax, current_x
+    call transform_coordinates
+    call draw_white_point
+
+    mov dx, a_x
+    sub dx, current_y
+    mov ax, a_y
+    add ax, current_x
+    call transform_coordinates
+    call draw_white_point
+
+    mov dx, a_x
+    sub dx, current_y
+    mov ax, a_y
+    sub ax, current_x
+    call transform_coordinates
+    call draw_white_point
+
+    ret
+    draw_circle_parts endp
 
 
 draw_line proc near
@@ -360,6 +463,6 @@ exit proc near
 start:
     mov ax, @data
     mov ds, ax
-    call main
+    call setup_cga_videomode
     call exit
 end start
