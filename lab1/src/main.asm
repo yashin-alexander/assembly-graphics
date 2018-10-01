@@ -18,9 +18,6 @@
     b_y dw ?
     cell_point_pixel dw ?
 
-; sp pointer to correctly repair stack in case of errors
-    sp_pointer dw ?
-
 .const
     DEFAULT_CELL_POINT_PIXEL equ 10000000b
     EVEN_NUMBERS_BANK_ADDR equ 0b800h
@@ -30,28 +27,10 @@
     SCREEN_HEIGTH equ 200
     CGA_VIDEOMODE equ 6
 
-LOCALS l_
+locals l_
+
 
 .code
-start:
-    push a_x
-    push a_y
-    push b_x
-    push b_y
-    push delta_x
-    push delta_y
-    push y_deltas_difference
-    push x_deltas_difference
-    push bresenham_delta_y
-    push bresenham_delta_x
-    push cell_point_pixel
-    push sp
-    mov word ptr [sp_pointer], sp
-
-    call main
-    call exit
-
-
 main proc near
     call setup_cga_videomode
 
@@ -372,23 +351,15 @@ wait_for_keypress proc near
 
 
 exit proc near
-    mov sp, sp_pointer
-    pop sp
-    pop cell_point_pixel
-    pop bresenham_delta_x
-    pop bresenham_delta_y
-    pop x_deltas_difference
-    pop y_deltas_difference
-    pop delta_y
-    pop delta_x
-    pop b_y
-    pop b_x
-    pop a_y
-    pop a_x
-
     mov ax, 4c00h
     int 21h
     ret
     exit endp
 
+
+start:
+    mov ax, @data
+    mov ds, ax
+    call main
+    call exit
 end start
