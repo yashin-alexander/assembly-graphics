@@ -1,12 +1,14 @@
 ; =============================================================================
-; Computer graphics
+; Assembly graphics
 ; =============================================================================
 ; Procedures:
 ; - transform_coordinates
-; - draw_point
+; - draw_white_point
 ; - draw_line
 ; - draw_circle
-;
+; - fill_area
+; =============================================================================
+; author_email: yashin.alexander.42@gmail.com
 
 .model small
 
@@ -43,6 +45,7 @@
 
 locals l_
 
+.stack 10240
 
 .code
 
@@ -54,6 +57,63 @@ setup_cga_videomode proc near
     mov es, ax
     ret
     setup_cga_videomode endp
+
+
+fill_area proc near
+; a_x: a_y - in-area point coordinates
+; fills area in which point is placed
+    mov ax, a_y
+    mov dx, a_x
+    call recursively_fill
+    ret
+    fill_area endp
+
+
+recursively_fill proc
+; takes x,y point coordinates in dx,ax
+; do nothing if the point is already filled
+; fills the point and runs the same procedure for four neighboring points otherwise
+    push dx
+    push ax
+    check_center:
+        call transform_coordinates
+        mov si, ax
+        mov cl, es:[si]
+        and cx, cell_point_pixel
+        cmp cl, 0
+        jne point_is_filled
+        call draw_white_point
+
+    check_bottom:
+        pop ax
+        pop dx
+        inc ax ; y--
+        call recursively_fill
+        dec ax
+
+    check_top:
+        dec ax ; y++
+        call recursively_fill
+        inc ax
+
+    check_right:
+        inc dx ; x ++
+        call recursively_fill
+        dec dx
+
+    check_left:
+        dec dx ; x --
+        call recursively_fill
+        inc dx
+
+    l_return: 
+        ret
+
+    point_is_filled:
+        pop ax
+        pop dx
+        jmp l_return
+    recursively_fill endp
 
 
 draw_circle proc near
