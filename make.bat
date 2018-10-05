@@ -1,5 +1,5 @@
 SET filename=MAIN
 
-TOOLS\TASM.EXE lab%1\SRC\%filename%.ASM /w2 /la /zi lab%1\BUILD\
-TOOLS\TLINK.EXE /v lab%1\BUILD\%filename%.OBJ, lab%1\BUILD\%1.EXE, lab%1\BUILD\%filename%.MAP
-COPY lab%1\BUILD\%1.exe %1.exe
+TOOLS\TASM.EXE graphics\SRC\%filename%.ASM /w2 /la /zi graphics\BUILD\
+TOOLS\TLINK.EXE /v graphics\BUILD\%filename%.OBJ, graphics\BUILD\PAINTER.EXE, graphics\BUILD\%filename%.MAP
+COPY graphics\BUILD\PAINTER.exe PAINTER.exe
