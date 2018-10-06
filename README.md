@@ -51,7 +51,7 @@ Parameters:
  - Dosbox
  - `TASM.EXE` and `TLINK.exe` in the `tools` directory. 
 
-### Quickstart
+### Run example
 In `dosbox`:
 ```
     mount c \path\to\assembly-graphics\repository
@@ -60,3 +60,7 @@ In `dosbox`:
     PAINTER.EXE
 ```
 You can add this lines to your `.dosbox.conf` to make dosbox execute it automatically on each startup.
+
+![Alt Text](flying_circle.gif)
+
+A flying circle will appear!
