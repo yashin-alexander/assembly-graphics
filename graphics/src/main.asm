@@ -42,10 +42,10 @@
     SCREEN_WIDTH equ 640
     SCREEN_HEIGTH equ 200
     CGA_VIDEOMODE equ 6
+    TIMEOUT equ 1
 
 locals l_
 
-.stack 10240
 
 .code
 
@@ -513,6 +513,19 @@ wait_for_keypress proc near
     wait_for_keypress endp
 
 
+sleep proc
+    xor ax, ax
+    int 1Ah 
+    add dx, TIMEOUT
+    mov bx, dx
+    l_repeat:   
+        int 1Ah
+        cmp dx, bx
+        jl l_repeat
+    ret
+    sleep endp
+
+
 exit proc near
     mov ax, 4c00h
     int 21h
@@ -520,9 +533,80 @@ exit proc near
     exit endp
 
 
+run_animation proc near
+; flying circle animation
+    mov a_x, 320
+    mov a_y, 100
+    l_repeat:
+        call trembling_left_circle
+        call trembling_right_circle
+        loop l_repeat
+    ret
+    run_animation endp
+
+
+trembling_left_circle proc near
+; make the circle fly to left
+    mov radius, 40
+    mov cx, 20
+    l_repeat_dec:
+        push cx
+        dec radius
+        dec a_x
+        dec a_x
+        call draw_circle
+        call sleep
+        call setup_cga_videomode
+        pop cx
+        loop l_repeat_dec
+    mov cx, 20
+    l_repeat_inc:
+        push cx
+        inc radius
+        dec a_x
+        dec a_x
+        call draw_circle
+        call sleep
+        call setup_cga_videomode
+        pop cx
+        loop l_repeat_inc
+    ret
+    trembling_left_circle endp
+
+
+trembling_right_circle proc near
+; make the circle fly to right
+    mov radius, 40
+    mov cx, 20
+    l_repeat_dec:
+        push cx
+        dec radius
+        inc a_x
+        inc a_x
+        call draw_circle
+        call sleep
+        call setup_cga_videomode
+        pop cx
+        loop l_repeat_dec
+    mov cx, 20
+    l_repeat_inc:
+        push cx
+        inc radius
+        inc a_x
+        inc a_x
+        call draw_circle
+        call sleep
+        call setup_cga_videomode
+        pop cx
+        loop l_repeat_inc
+    ret
+    trembling_right_circle endp
+
+
 start:
     mov ax, @data
     mov ds, ax
     call setup_cga_videomode
+    call run_animation
     call exit
 end start
